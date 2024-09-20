@@ -62,23 +62,20 @@ final class Client implements AskableInterface
         /** @var Queue<string> */
         $queue = new Queue();
         async(static function () use ($client, $queue): void {
+            $endSuffix = '1.1.4.3';
             while ($message = $client->receive()) {
-                $json = json_decode($message->buffer(), true);
-                switch ($json[3]) {
-                    case 'phx_reply':
-                        if ($cached = data_get($json, '4.response.rendered.1.1.4.3')) {
-                            $queue->push((new HtmlConverter())->convert($cached));
+                $data = json_decode($message->buffer(), true);
+                $diff = array_pop($data);
+                if (Arr::has($diff, $endSuffix)) {
+                    return;
+                }
+                if ($cache = data_get($diff, "response.rendered.{$endSuffix}")) {
+                    $queue->push((new HtmlConverter())->convert($cache));
 
-                            return;
-                        }
-                        break;
-                    case 'diff':
-                        if (!Arr::has($json, $keys = '4.e.0.1.data')) {
-                            return;
-                        }
-                        if ($chunk = data_get($json, $keys)) {
-                            $queue->push(str($chunk)->replace('<br/>', PHP_EOL)->toString());
-                        }
+                    return;
+                }
+                if ($chunk = data_get($diff, 'e.0.1.data')) {
+                    $queue->push(str($chunk)->replace('<br/>', PHP_EOL)->toString());
                 }
             }
         })->finally(function () use ($client, $queue): void {
