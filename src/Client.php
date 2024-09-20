@@ -2,122 +2,103 @@
 
 namespace Gingdev\IAskAI;
 
-use Gingdev\IAskAI\Internal\Askable;
-use Gingdev\IAskAI\Internal\IResponse;
+use Amp\ByteStream\ReadableIterableStream;
+use Amp\ByteStream\ReadableStream;
+use Amp\Pipeline\Queue;
+use Amp\Websocket\Client\WebsocketHandshake;
+use Gingdev\IAskAI\Contracts\AskableInterface;
 use Hyperf\Collection\Arr;
 use League\HTMLToMarkdown\HtmlConverter;
+use League\Uri\Uri;
 use Symfony\Component\BrowserKit\HttpBrowser;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
-use Wrench\Client as WebSocketClient;
 
+use function Amp\async;
+use function Amp\Websocket\Client\connect;
 use function Hyperf\Collection\collect;
 use function Hyperf\Collection\data_get;
 use function Hyperf\Stringable\str;
 
-class Client implements Askable, IResponse
+final class Client implements AskableInterface
 {
     public const BASE_URL = 'https://iask.ai';
     public const WEBSOCKET_URL = 'wss://iask.ai/live/websocket';
-    public const ASKAI_KEY = '_askai_key';
 
-    private string $channel;
-    private string $session;
-
-    private WebSocketClient $wsClient;
-
-    public function __construct(?HttpClientInterface $client = null)
+    private function __construct(private HttpBrowser $browser)
     {
-        $browser = new HttpBrowser($client ?: HttpClient::create());
-        $crawler = $browser->request('GET', self::BASE_URL);
-        $token = $crawler->filterXPath('//meta[@name="csrf-token"]')->attr('content');
-        $session = $crawler->filterXPath('//div[starts-with(@id, "phx-F_")]');
-        $wsClient = new WebSocketClient(self::WEBSOCKET_URL."?_csrf_token={$token}&vsn=2.0.0", self::BASE_URL);
-        $wsClient->addRequestHeader(
-            'cookie',
-            sprintf(
-                '%s=%s',
-                self::ASKAI_KEY,
-                $browser->getCookieJar()->get(self::ASKAI_KEY)->getRawValue()
-            )
-        );
-        if (!$wsClient->connect()) {
-            throw new \RuntimeException('Disconnect from websocket.');
-        }
-        $this->channel = 'lv:'.$session->attr('id');
-        $this->session = $session->attr('data-phx-session');
-        $this->wsClient = $wsClient;
     }
 
-    public function ask(
-        string $input,
-        string $mode = 'question',
-        string $level = 'detailed'
-    ): IResponse {
-        $data = collect([
-            null,
-            null,
-            $this->channel,
-            'phx_join',
-            [
-                'url' => self::BASE_URL.'?'.http_build_query([
-                    'q' => $input,
-                    'mode' => $mode,
-                    'options' => [
-                        'detail_level' => $level,
-                    ],
-                ]),
-                'session' => $this->session,
-            ],
-        ])->toJson();
-        $this->wsClient->sendData($data);
-
-        return $this;
+    public static function create(?HttpClientInterface $client = null): AskableInterface
+    {
+        return new self(new HttpBrowser($client ?: HttpClient::create()));
     }
 
-    public function stream(): iterable
+    public function ask(array|string $input): ReadableStream
     {
-        static $emptyChunkCount = 0;
-        foreach ($this->wsClient->receive() as $json) {
-            $reply = json_decode($json, true);
-            if (Arr::has($reply, $key = '4.response.rendered.1.1.4.3')) {
-                $anwser = data_get($reply, $key);
-                if ('' === $anwser) {
-                    continue;
+        $query = http_build_query(is_array($input) ? $input : ['q' => $input]);
+
+        return $this->createReadableForUri(Uri::new(self::BASE_URL)->withQuery($query));
+    }
+
+    private function createReadableForUri(string $uri): ReadableIterableStream
+    {
+        $crawler = $this->browser->request('GET', $uri);
+        $csrftoken = $crawler->filterXPath('//*[@name="csrf-token"]')->attr('content');
+        $dom = $crawler->filterXPath('//*[starts-with(@id, "phx-F_")]');
+        $handshake = (new WebsocketHandshake(self::WEBSOCKET_URL))
+            ->withQueryParameter('_csrf_token', $csrftoken)
+            ->withQueryParameter('vsn', '2.0.0')
+            ->withHeader('Cookie', implode('; ', $this->getCookies($uri)))
+        ;
+        $data = collect([null, null, 'lv:'.$dom->attr('id'), 'phx_join', [
+            'url' => $uri,
+            'session' => $dom->attr('data-phx-session'),
+        ]])->toJson();
+
+        $client = connect($handshake);
+        $client->sendText($data);
+
+        /** @var Queue<string> */
+        $queue = new Queue();
+        async(static function () use ($client, $queue): void {
+            while ($message = $client->receive()) {
+                $json = json_decode($message->buffer(), true);
+                switch ($json[3]) {
+                    case 'phx_reply':
+                        if ($cached = data_get($json, '4.response.rendered.1.1.4.3')) {
+                            $queue->push((new HtmlConverter())->convert($cached));
+
+                            return;
+                        }
+                        break;
+                    case 'diff':
+                        if (!Arr::has($json, $keys = '4.e.0.1.data')) {
+                            return;
+                        }
+                        if ($chunk = data_get($json, $keys)) {
+                            $queue->push(str($chunk)->replace('<br/>', PHP_EOL)->toString());
+                        }
                 }
-                yield (new HtmlConverter())->convert($anwser);
+            }
+        })->finally(function () use ($client, $queue): void {
+            $queue->complete();
+            $client->close();
+        });
 
-                return;
-            }
-            if (!Arr::has($reply, $key = '4.e.0.1.data')) {
-                continue;
-            }
-            $chunk = str(data_get($reply, $key))
-                ->replace('<br/>', PHP_EOL)
-                ->toString();
-            if ('' === $chunk) {
-                ++$emptyChunkCount;
-                continue;
-            }
-            yield $chunk;
-        }
-        if ($this->wsClient->isConnected() && $emptyChunkCount < 2) {
-            yield from $this->stream();
-        }
+        return new ReadableIterableStream($queue->pipe());
     }
 
-    public function get(): string
+    /**
+     * @return string[]
+     */
+    private function getCookies(string $uri): array
     {
-        $result = '';
-        foreach ($this->stream() as $chunk) {
-            $result .= $chunk;
+        $cookies = [];
+        foreach ($this->browser->getCookieJar()->allRawValues($uri) as $key => $value) {
+            $cookies[] = $key.'='.$value;
         }
 
-        return $result;
-    }
-
-    public function __destruct()
-    {
-        $this->wsClient->disconnect();
+        return $cookies;
     }
 }
