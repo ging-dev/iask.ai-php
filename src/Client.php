@@ -66,11 +66,13 @@ final class Client implements AskableInterface
             while ($message = $client->receive()) {
                 $data = json_decode($message->buffer(), true);
                 $diff = array_pop($data);
-                if (Arr::has($diff, $endSuffix)) {
-                    return;
-                }
-                if ($cache = data_get($diff, "response.rendered.{$endSuffix}")) {
-                    $queue->push((new HtmlConverter())->convert($cache));
+                if (
+                    ($cache = data_get($diff, "response.rendered.{$endSuffix}"))
+                    || Arr::has($diff, $endSuffix)
+                ) {
+                    if ($cache) {
+                        $queue->push((new HtmlConverter())->convert($cache));
+                    }
 
                     return;
                 }
