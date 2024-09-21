@@ -10,13 +10,14 @@ use Amp\ByteStream\ReadableStream;
  * @phpstan-type ModeType = 'question'|'academic'|'fast'|'forums'|'wiki'|'advanced'
  * @phpstan-type DetailLevelType = 'concise'|'detailed'|'comprehensive'
  * @phpstan-type OptionsType = array{ detail_level: DetailLevelType }
+ * @phpstan-type QueryType = array{ q: string, mode: ModeType, options?: OptionsType }|string
  */
 interface AskableInterface
 {
     /**
-     * @param array{ q: string, mode: ModeType, options?: OptionsType }|string $input
+     * @param QueryType $query
      */
     public function ask(
-        array|string $input
+        array|string $query
     ): ReadableStream;
 }
