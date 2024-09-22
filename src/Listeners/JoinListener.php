@@ -27,28 +27,27 @@ class JoinListener
 
     public function onJoin(JoinEvent $event): void
     {
-        $uri = Uri::new(static::BASE_URL)->withQuery($event->getQuery());
-        $crawler = $this->browser->request('GET', $uri);
-        $csrftoken = $crawler->filterXPath('//*[@name="csrf-token"]')->attr('content');
-        $dom = $crawler->filterXPath('//*[starts-with(@id, "phx-F_")]');
-        $handshake = (new WebsocketHandshake(static::WEBSOCKET_URL))
-            ->withQueryParameter('_csrf_token', $csrftoken)
-            ->withQueryParameter('vsn', '2.0.0')
-            ->withHeader('Cookie', implode('; ', $this->getCookies($uri)))
-        ;
-        $message = sprintf(
-            '[null,null,"lv:%s","phx_join",%s]',
-            $dom->attr('id'),
-            json_encode([
-                'url' => $uri,
-                'session' => $dom->attr('data-phx-session'),
-            ])
-        );
-        $queue = $event->getQueue();
-        async(static function () use ($queue, $handshake, $message): void {
+        async(function () use ($event): void {
+            $uri = Uri::new(static::BASE_URL)->withQuery($event->getQuery());
+            $crawler = $this->browser->request('GET', $uri);
+            $csrftoken = $crawler->filterXPath('//*[@name="csrf-token"]')->attr('content');
+            $dom = $crawler->filterXPath('//*[starts-with(@id, "phx-F_")]');
+            $handshake = (new WebsocketHandshake(static::WEBSOCKET_URL))
+                ->withQueryParameter('_csrf_token', $csrftoken)
+                ->withQueryParameter('vsn', '2.0.0')
+                ->withHeader('Cookie', implode('; ', $this->getCookies($uri)));
+            $message = sprintf(
+                '[null,null,"lv:%s","phx_join",%s]',
+                $dom->attr('id'),
+                json_encode([
+                    'url' => $uri,
+                    'session' => $dom->attr('data-phx-session'),
+                ])
+            );
             $client = connect($handshake);
             $client->sendText($message);
             $endSuffix = '3.1.4.3';
+            $queue = $event->getQueue();
             while ($message = $client->receive()) {
                 $data = json_decode($message->buffer(), true);
                 $diff = array_pop($data);
@@ -62,12 +61,12 @@ class JoinListener
                     if ($cache) {
                         $queue->push((new HtmlConverter())->convert($cache));
                     }
-                    $queue->complete();
-                    $client->close();
 
-                    return;
+                    break;
                 }
             }
+            $queue->complete();
+            $client->close();
         });
     }
 
