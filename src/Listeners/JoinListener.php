@@ -46,7 +46,7 @@ class JoinListener
             );
             $client = connect($handshake);
             $client->sendText($message);
-            $endSuffix = '3.1.4.3';
+            $endSuffix = '2.1.4.3';
             $queue = $event->getQueue();
             while ($message = $client->receive()) {
                 $data = json_decode($message->buffer(), true);
