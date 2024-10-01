@@ -2,7 +2,7 @@
 
 namespace Gingdev\IAskAI\Events;
 
-use Amp\Pipeline\Queue;
+use Amp\ByteStream\Pipe;
 use Gingdev\IAskAI\Contracts\AskableInterface;
 use Symfony\Contracts\EventDispatcher\Event;
 
@@ -11,8 +11,7 @@ use Symfony\Contracts\EventDispatcher\Event;
  */
 class JoinEvent extends Event
 {
-    /** @var Queue<string> */
-    private Queue $queue;
+    private Pipe $pipe;
 
     /**
      * @param QueryType $query
@@ -20,7 +19,7 @@ class JoinEvent extends Event
     public function __construct(
         private array|string $query,
     ) {
-        $this->queue = new Queue();
+        $this->pipe = new Pipe(0);
     }
 
     public function getQuery(): string
@@ -32,11 +31,8 @@ class JoinEvent extends Event
         );
     }
 
-    /**
-     * @return Queue<string>
-     */
-    public function getQueue(): Queue
+    public function getPipe(): Pipe
     {
-        return $this->queue;
+        return $this->pipe;
     }
 }

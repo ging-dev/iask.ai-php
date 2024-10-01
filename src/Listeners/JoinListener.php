@@ -4,10 +4,9 @@ namespace Gingdev\IAskAI\Listeners;
 
 use Amp\Websocket\Client\WebsocketHandshake;
 use Gingdev\IAskAI\Events\JoinEvent;
-use Illuminate\Support\Arr;
-use League\HTMLToMarkdown\HtmlConverter;
+use Gingdev\IAskAI\Internal\Chunk;
+use Gingdev\IAskAI\Internal\Inspector;
 use League\Uri\Uri;
-use Symfony\Component\BrowserKit\HttpBrowser;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 use function Amp\async;
@@ -18,68 +17,34 @@ class JoinListener
     public const BASE_URL = 'https://iask.ai';
     public const WEBSOCKET_URL = 'wss://iask.ai/live/websocket';
 
-    private HttpBrowser $browser;
-
-    public function __construct(HttpClientInterface $client)
+    public function __construct(private HttpClientInterface $client)
     {
-        $this->browser = new HttpBrowser($client);
     }
 
     public function onJoin(JoinEvent $event): void
     {
         async(function () use ($event): void {
-            $uri = Uri::new(static::BASE_URL)->withQuery($event->getQuery());
-            $crawler = $this->browser->request('GET', $uri);
-            $csrftoken = $crawler->filterXPath('//*[@name="csrf-token"]')->attr('content');
-            $dom = $crawler->filterXPath('//*[starts-with(@id, "phx-F_")]');
+            [$cookie, $csrftoken, $message] = Inspector::inspect(
+                $this->client,
+                Uri::new(static::BASE_URL)->withQuery($event->getQuery()),
+            );
             $handshake = (new WebsocketHandshake(static::WEBSOCKET_URL))
                 ->withQueryParameter('_csrf_token', $csrftoken)
                 ->withQueryParameter('vsn', '2.0.0')
-                ->withHeader('Cookie', implode('; ', $this->getCookies($uri)));
-            $message = sprintf(
-                '[null,null,"lv:%s","phx_join",%s]',
-                $dom->attr('id'),
-                json_encode([
-                    'url' => $uri,
-                    'session' => $dom->attr('data-phx-session'),
-                ])
-            );
+                ->withHeader('Cookie', $cookie)
+            ;
             $client = connect($handshake);
             $client->sendText($message);
-            $endSuffix = '2.1.4.3';
-            $queue = $event->getQueue();
-            while ($message = $client->receive()) {
-                $data = json_decode($message->buffer(), true);
-                $diff = array_pop($data);
-                if ($chunk = data_get($diff, 'e.0.1.data')) {
-                    $queue->push(str($chunk)->replace('<br/>', PHP_EOL)->toString());
+            $sink = $event->getPipe()->getSink();
+            do {
+                $chunk = Chunk::from($client->receive());
+                if ($chunk->content->isEmpty()) {
+                    continue;
                 }
-                if (
-                    ($cache = data_get($diff, "response.rendered.{$endSuffix}"))
-                    || Arr::has($diff, $endSuffix)
-                ) {
-                    if ($cache) {
-                        $queue->push((new HtmlConverter())->convert($cache));
-                    }
-
-                    break;
-                }
-            }
-            $queue->complete();
+                $sink->write($chunk->content->toString());
+            } while ($chunk->continue);
+            $sink->close();
             $client->close();
         });
-    }
-
-    /**
-     * @return string[]
-     */
-    private function getCookies(string $uri): array
-    {
-        $cookies = [];
-        foreach ($this->browser->getCookieJar()->allRawValues($uri) as $key => $value) {
-            $cookies[] = $key.'='.$value;
-        }
-
-        return $cookies;
     }
 }

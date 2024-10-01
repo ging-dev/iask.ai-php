@@ -2,7 +2,6 @@
 
 namespace Gingdev\IAskAI;
 
-use Amp\ByteStream\ReadableIterableStream;
 use Amp\ByteStream\ReadableStream;
 use Gingdev\IAskAI\Contracts\AskableInterface;
 use Gingdev\IAskAI\Events\JoinEvent;
@@ -34,6 +33,6 @@ final class Client implements AskableInterface
     {
         $event = $this->dispatcher->dispatch(new JoinEvent($query));
 
-        return new ReadableIterableStream($event->getQueue()->pipe());
+        return $event->getPipe()->getSource();
     }
 }
