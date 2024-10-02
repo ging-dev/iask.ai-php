@@ -2,38 +2,47 @@
 
 namespace Gingdev\IAskAI\Internal;
 
-use Symfony\Component\BrowserKit\HttpBrowser;
+use Amp\Http\Client\Response;
+use Symfony\Component\DomCrawler\Crawler;
 
 /**
  * @internal
  */
 final class Inspector
 {
-    public const BASE_URL = 'https://iask.ai';
-    public const WEBSOCKET_URL = 'wss://iask.ai/live/websocket';
+    private function __construct(
+        private string $joinMessage,
+        private string $csrftoken,
+    ) {
+    }
 
-    /**
-     * @return array{string, string, string}
-     */
-    public static function inspect(string $uri): array
+    public static function inspect(Response $response): self
     {
-        $browser = new HttpBrowser();
-        $crawler = $browser->request('GET', $uri);
+        $crawler = new Crawler($response->getBody()->buffer());
         $dom = $crawler->filterXPath('//*[starts-with(@id, "phx-F_")]');
-        $csrftoken = $crawler->filterXPath('//*[@name="csrf-token"]')->attr('content');
-        $cookies = [];
-        foreach ($browser->getCookieJar()->allRawValues($uri) as $key => $value) {
-            $cookies[] = $key.'='.$value;
-        }
-        $message = sprintf(
-            '[null,null,"lv:%s","phx_join",%s]',
-            $dom->attr('id'),
-            json_encode([
-                'url' => $uri,
-                'session' => $dom->attr('data-phx-session'),
-            ])
-        );
 
-        return [implode('; ', $cookies), $csrftoken, $message];
+        return new self(
+            json_encode([
+                null,
+                null,
+                "lv:{$dom->attr('id')}",
+                'phx_join',
+                [
+                    'url' => $response->getRequest()->getUri(),
+                    'session' => $dom->attr('data-phx-session'),
+                ],
+            ]),
+            $crawler->filterXPath('//*[@name="csrf-token"]')->attr('content')
+        );
+    }
+
+    public function getCsrfToken(): string
+    {
+        return $this->csrftoken;
+    }
+
+    public function getJoinMessage(): string
+    {
+        return $this->joinMessage;
     }
 }
