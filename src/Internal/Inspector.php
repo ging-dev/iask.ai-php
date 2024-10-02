@@ -3,21 +3,21 @@
 namespace Gingdev\IAskAI\Internal;
 
 use Symfony\Component\BrowserKit\HttpBrowser;
-use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
  * @internal
  */
 final class Inspector
 {
+    public const BASE_URL = 'https://iask.ai';
+    public const WEBSOCKET_URL = 'wss://iask.ai/live/websocket';
+
     /**
      * @return array{string, string, string}
      */
-    public static function inspect(
-        HttpClientInterface $client,
-        string $uri,
-    ): array {
-        $browser = new HttpBrowser($client);
+    public static function inspect(string $uri): array
+    {
+        $browser = new HttpBrowser();
         $crawler = $browser->request('GET', $uri);
         $dom = $crawler->filterXPath('//*[starts-with(@id, "phx-F_")]');
         $csrftoken = $crawler->filterXPath('//*[@name="csrf-token"]')->attr('content');

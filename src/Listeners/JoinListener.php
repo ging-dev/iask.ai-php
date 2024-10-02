@@ -7,28 +7,19 @@ use Gingdev\IAskAI\Events\JoinEvent;
 use Gingdev\IAskAI\Internal\Chunk;
 use Gingdev\IAskAI\Internal\Inspector;
 use League\Uri\Uri;
-use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 use function Amp\async;
 use function Amp\Websocket\Client\connect;
 
 class JoinListener
 {
-    public const BASE_URL = 'https://iask.ai';
-    public const WEBSOCKET_URL = 'wss://iask.ai/live/websocket';
-
-    public function __construct(private HttpClientInterface $client)
-    {
-    }
-
     public function onJoin(JoinEvent $event): void
     {
         async(function () use ($event): void {
             [$cookie, $csrftoken, $message] = Inspector::inspect(
-                $this->client,
-                Uri::new(static::BASE_URL)->withQuery($event->getQuery()),
+                Uri::new(Inspector::BASE_URL)->withQuery($event->getQuery()),
             );
-            $handshake = (new WebsocketHandshake(static::WEBSOCKET_URL))
+            $handshake = (new WebsocketHandshake(Inspector::WEBSOCKET_URL))
                 ->withQueryParameter('_csrf_token', $csrftoken)
                 ->withQueryParameter('vsn', '2.0.0')
                 ->withHeader('Cookie', $cookie)

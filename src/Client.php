@@ -8,8 +8,6 @@ use Gingdev\IAskAI\Events\JoinEvent;
 use Gingdev\IAskAI\Listeners\JoinListener;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
-use Symfony\Component\HttpClient\HttpClient;
-use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 final class Client implements AskableInterface
 {
@@ -19,12 +17,13 @@ final class Client implements AskableInterface
     }
 
     public static function create(
-        ?HttpClientInterface $client = null,
         ?EventDispatcherInterface $dispatcher = null
     ): AskableInterface {
         $dispatcher = $dispatcher ?: new EventDispatcher();
-        $listener = new JoinListener($client ?: HttpClient::create());
-        $dispatcher->addListener(JoinEvent::class, $listener->onJoin(...));
+        $dispatcher->addListener(
+            JoinEvent::class,
+            (new JoinListener())->onJoin(...)
+        );
 
         return new self($dispatcher);
     }
