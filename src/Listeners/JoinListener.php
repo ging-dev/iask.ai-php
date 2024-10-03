@@ -24,6 +24,6 @@ class JoinListener
             } while ($chunk->continue);
             $sink->close();
             $client->close();
-        });
+        })->ignore();
     }
 }

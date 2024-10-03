@@ -17,7 +17,7 @@ final class Client implements AskableInterface
     }
 
     public static function create(
-        ?EventDispatcherInterface $dispatcher = null
+        ?EventDispatcherInterface $dispatcher = null,
     ): AskableInterface {
         $dispatcher = $dispatcher ?: new EventDispatcher();
         $dispatcher->addListener(

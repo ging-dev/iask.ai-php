@@ -12,7 +12,7 @@ final class Inspector
 {
     private function __construct(
         private string $joinMessage,
-        private string $csrftoken,
+        private string $csrfToken,
     ) {
     }
 
@@ -38,7 +38,7 @@ final class Inspector
 
     public function getCsrfToken(): string
     {
-        return $this->csrftoken;
+        return $this->csrfToken;
     }
 
     public function getJoinMessage(): string

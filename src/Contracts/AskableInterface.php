@@ -18,6 +18,6 @@ interface AskableInterface
      * @param QueryType $query
      */
     public function ask(
-        array|string $query
+        array|string $query,
     ): ReadableStream;
 }
