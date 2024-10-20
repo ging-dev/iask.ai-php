@@ -19,7 +19,7 @@ final class Inspector
     public static function inspect(Response $response): self
     {
         $crawler = new Crawler($response->getBody()->buffer());
-        $dom = $crawler->filterXPath('//*[starts-with(@id, "phx-F_")]');
+        $dom = $crawler->filterXPath('//*[starts-with(@id, "phx-")]');
 
         return new self(
             json_encode([
