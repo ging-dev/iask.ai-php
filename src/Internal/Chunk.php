@@ -16,7 +16,7 @@ final class Chunk
 
     private function __construct(
         public Stringable $content,
-        public bool $continue,
+        public bool $stop,
     ) {
     }
 
@@ -25,7 +25,7 @@ final class Chunk
         $data = json_decode($message->buffer(), true);
         $diff = array_pop($data);
         $content = str('');
-        $continue = !Arr::has($diff, self::END);
+        $stop = Arr::has($diff, self::END);
         if ($chunk = data_get($diff, 'e.0.1.data')) {
             $content = $content->append($chunk)->replace('<br/>', PHP_EOL);
         }
@@ -33,9 +33,9 @@ final class Chunk
             $content = $content->append($cache)->pipe(
                 (new HtmlConverter())->convert(...)
             );
-            $continue = false;
+            $stop = true;
         }
 
-        return new self($content, $continue);
+        return new self($content, $stop);
     }
 }

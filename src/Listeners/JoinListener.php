@@ -5,25 +5,26 @@ namespace Gingdev\IAskAI\Listeners;
 use Gingdev\IAskAI\Events\JoinEvent;
 use Gingdev\IAskAI\Internal\Chunk;
 use Gingdev\IAskAI\Internal\WebsocketFactory;
-
-use function Amp\async;
+use Revolt\EventLoop;
 
 class JoinListener
 {
     public function onJoin(JoinEvent $event): void
     {
-        async(function () use ($event): void {
+        EventLoop::queue(function () use ($event): void {
             $client = WebsocketFactory::createForQuery($event->getQuery());
             $sink = $event->getPipe()->getSink();
-            do {
-                $chunk = Chunk::from($client->receive());
-                if ($chunk->content->isEmpty()) {
-                    continue;
+            while ($message = $client->receive()) {
+                $chunk = Chunk::from($message);
+                if (!$chunk->content->isEmpty()) {
+                    $sink->write($chunk->content->toString());
                 }
-                $sink->write($chunk->content->toString());
-            } while ($chunk->continue);
+                if ($chunk->stop) {
+                    break;
+                }
+            }
             $sink->close();
             $client->close();
-        })->ignore();
+        });
     }
 }
