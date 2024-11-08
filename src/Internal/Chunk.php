@@ -12,7 +12,7 @@ use League\HTMLToMarkdown\HtmlConverter;
  */
 final class Chunk
 {
-    public const END = '2.1.4.3';
+    public const END = '2.1.4.4';
 
     private function __construct(
         public Stringable $content,
