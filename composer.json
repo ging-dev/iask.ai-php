@@ -20,7 +20,6 @@
         "league/html-to-markdown": "^5.1",
         "amphp/websocket-client": "^2.0",
         "symfony/event-dispatcher": "^7.1",
-        "illuminate/support": "^11.23",
         "amphp/http-client-cookies": "^2.0",
         "symfony/dom-crawler": "^7.1"
     },

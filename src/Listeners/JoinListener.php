@@ -16,8 +16,8 @@ class JoinListener
             $sink = $event->getPipe()->getSink();
             while ($message = $client->receive()) {
                 $chunk = Chunk::from($message);
-                if (!$chunk->content->isEmpty()) {
-                    $sink->write($chunk->content->toString());
+                if ('' !== $chunk->content) {
+                    $sink->write($chunk->content);
                 }
                 if ($chunk->stop) {
                     break;

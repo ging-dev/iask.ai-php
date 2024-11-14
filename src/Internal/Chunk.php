@@ -3,8 +3,6 @@
 namespace Gingdev\IAskAI\Internal;
 
 use Amp\Websocket\WebsocketMessage;
-use Illuminate\Support\Arr;
-use Illuminate\Support\Stringable;
 use League\HTMLToMarkdown\HtmlConverter;
 
 /**
@@ -12,10 +10,8 @@ use League\HTMLToMarkdown\HtmlConverter;
  */
 final class Chunk
 {
-    public const END = '2.1.4.4';
-
     private function __construct(
-        public Stringable $content,
+        public string $content,
         public bool $stop,
     ) {
     }
@@ -24,15 +20,13 @@ final class Chunk
     {
         $data = json_decode($message->buffer(), true);
         $diff = array_pop($data);
-        $content = str('');
-        $stop = Arr::has($diff, self::END);
-        if ($chunk = data_get($diff, 'e.0.1.data')) {
-            $content = $content->append($chunk)->replace('<br/>', PHP_EOL);
+        $content = '';
+        $stop = isset($diff[2][1][4][4]);
+        if ($chunk = $diff['e'][0][1]['data'] ?? false) {
+            $content = str_replace('<br/>', PHP_EOL, $chunk);
         }
-        if ($cache = data_get($diff, 'response.rendered.'.self::END)) {
-            $content = $content->append($cache)->pipe(
-                (new HtmlConverter())->convert(...)
-            );
+        if ($cache = $diff['response']['rendered'][2][1][4][4] ?? false) {
+            $content = (new HtmlConverter())->convert($cache);
             $stop = true;
         }
 
