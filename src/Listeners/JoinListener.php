@@ -3,7 +3,7 @@
 namespace Gingdev\IAskAI\Listeners;
 
 use Gingdev\IAskAI\Events\JoinEvent;
-use Gingdev\IAskAI\Internal\IAskProvider;
+use Gingdev\IAskAI\Providers\IAskProvider;
 
 class JoinListener
 {
