@@ -48,8 +48,10 @@ function parseMessage(WebsocketMessage $message): array
     } else {
         cachedFind($diff, $cache);
         if ($cache) {
-            $content = (new HtmlConverter())->convert($cache);
             $continue = false;
+            if (isset($diff['response'])) {
+                $content = (new HtmlConverter())->convert($cache);
+            }
         }
     }
 
