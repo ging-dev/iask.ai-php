@@ -46,7 +46,7 @@ function parseMessage(WebsocketMessage $message): array
     if ($chunk = $diff['e'][0][1]['data'] ?? false) {
         $content = str_replace('<br/>', PHP_EOL, $chunk);
     } else {
-        findCached($diff, $cache);
+        cachedFind($diff, $cache);
         if ($cache) {
             $content = (new HtmlConverter())->convert($cache);
             $continue = false;
@@ -61,14 +61,14 @@ function parseMessage(WebsocketMessage $message): array
  *
  * @param mixed[] $data
  */
-function findCached(array $data, ?string &$cache): void
+function cachedFind(array $data, ?string &$cache): void
 {
     if ($cache) {
         return;
     }
     foreach ($data as $value) {
         if (is_array($value)) {
-            findCached($value, $cache);
+            cachedFind($value, $cache);
         }
         if (!is_string($value)) {
             continue;
