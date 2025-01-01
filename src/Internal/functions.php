@@ -35,39 +35,46 @@ function inspect(Response $response): array
 /**
  * @internal
  *
- * @param mixed[] $value
+ * @return array{string, bool}
  */
-function dot(string $keys, array $value): string|false
+function parseMessage(WebsocketMessage $message): array
 {
-    foreach (explode('.', $keys) as $key) {
-        if (!array_key_exists($key, $value)) {
-            return false;
+    $data = json_decode($message->buffer(), true);
+    $diff = array_pop($data);
+    $content = '';
+    $continue = true;
+    if ($chunk = $diff['e'][0][1]['data'] ?? false) {
+        $content = str_replace('<br/>', PHP_EOL, $chunk);
+    } else {
+        findCached($diff, $cache);
+        if ($cache) {
+            $content = (new HtmlConverter())->convert($cache);
+            $continue = false;
         }
-        $value = $value[$key];
     }
 
-    return $value;
+    return [$content, $continue];
 }
 
 /**
  * @internal
  *
- * @return array{string, bool}
+ * @param mixed[] $data
  */
-function parseMessage(WebsocketMessage $message): array
+function findCached(array $data, ?string &$cache): void
 {
-    $suffix = '2.1.4.4';
-    $data = json_decode($message->buffer(), true);
-    $diff = array_pop($data);
-    $content = '';
-    $continue = false === dot($suffix, $diff);
-    if ($cache = dot("response.rendered.$suffix", $diff)) {
-        $content = (new HtmlConverter())->convert($cache);
-        $continue = false;
+    if ($cache) {
+        return;
     }
-    if ($chunk = dot('e.0.1.data', $diff)) {
-        $content = str_replace('<br/>', PHP_EOL, $chunk);
+    foreach ($data as $value) {
+        if (is_array($value)) {
+            findCached($value, $cache);
+        }
+        if (!is_string($value)) {
+            continue;
+        }
+        if (str_starts_with($value, '<p>')) {
+            $cache = $value;
+        }
     }
-
-    return [$content, $continue];
 }
