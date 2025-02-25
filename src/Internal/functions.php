@@ -16,6 +16,7 @@ function inspect(Response $response): array
 {
     $crawler = new Crawler($response->getBody()->buffer());
     $dom = $crawler->filterXPath('//*[starts-with(@id, "phx-")]');
+    $csrfToken = $crawler->filterXPath('//*[@name="csrf-token"]')->attr('content');
 
     return [
         json_encode([
@@ -24,11 +25,14 @@ function inspect(Response $response): array
             "lv:{$dom->attr('id')}",
             'phx_join',
             [
+                'params' => [
+                    '_csrf_token' => $csrfToken,
+                ],
                 'url' => $response->getRequest()->getUri(),
                 'session' => $dom->attr('data-phx-session'),
             ],
         ]),
-        $crawler->filterXPath('//*[@name="csrf-token"]')->attr('content'),
+        $csrfToken,
     ];
 }
 
