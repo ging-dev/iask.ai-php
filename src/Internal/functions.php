@@ -79,7 +79,7 @@ function cachedFind(array $data, ?string &$cache): void
         if (!is_string($value)) {
             continue;
         }
-        if (str_starts_with($value, '<p>') || str_starts_with($value, '<h1>')) {
+        if (preg_match('#<p>.+?</p>#', $value)) {
             $cache = $value;
         }
     }
