@@ -43,23 +43,27 @@ function inspect(Response $response): array
  */
 function parseMessage(WebsocketMessage $message): array
 {
+    static $htmlConverter = null;
+    if (null === $htmlConverter) {
+        $htmlConverter = new HtmlConverter(['strip_tags' => true]);
+    }
     $data = json_decode($message->buffer(), true);
     $diff = array_pop($data);
     $content = '';
     $continue = true;
     if ($chunk = $diff['e'][0][1]['data'] ?? false) {
-        $content = str_replace('<br/>', PHP_EOL, $chunk);
+        $content = $htmlConverter->convert($chunk);
     } else {
         cachedFind($diff, $cache);
         if ($cache) {
             $continue = false;
             if (isset($diff['response'])) {
-                $content = (new HtmlConverter(['strip_tags' => true]))->convert($cache);
+                $content = $htmlConverter->convert($cache);
             }
         }
     }
 
-    return [$content, $continue];
+    return [$content.PHP_EOL.PHP_EOL, $continue];
 }
 
 /**
