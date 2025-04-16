@@ -39,13 +39,19 @@ final class IAskProvider
         $wsClient->sendText($joinMessage);
 
         EventLoop::queue(function () use ($wsClient, $event): void {
-            $continue = true;
+            $continue = $isFirst = true;
             $sink = $event->getPipe()->getSink();
             while ($continue && $message = $wsClient->receive()) {
                 [$content, $continue] = parseMessage($message);
-                if ($content) {
-                    $sink->write($content);
+                if (!$content) {
+                    continue;
                 }
+                if ($isFirst) {
+                    $isFirst = false;
+                } else {
+                    $content = PHP_EOL.PHP_EOL.$content;
+                }
+                $sink->write($content);
             }
             $sink->close();
             $wsClient->close();

@@ -63,7 +63,7 @@ function parseMessage(WebsocketMessage $message): array
         }
     }
 
-    return [$content.PHP_EOL.PHP_EOL, $continue];
+    return [$content, $continue];
 }
 
 /**
