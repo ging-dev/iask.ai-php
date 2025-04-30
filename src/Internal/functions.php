@@ -45,7 +45,7 @@ function parseMessage(WebsocketMessage $message): array
 {
     static $htmlConverter = null;
     if (null === $htmlConverter) {
-        $htmlConverter = new HtmlConverter(['strip_tags' => true]);
+        $htmlConverter = new HtmlConverter();
     }
     $data = json_decode($message->buffer(), true);
     $diff = array_pop($data);
@@ -62,8 +62,11 @@ function parseMessage(WebsocketMessage $message): array
             }
         }
     }
+    if ($content) {
+        $content = html_entity_decode(strip_tags($content), ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5);
+    }
 
-    return [html_entity_decode($content, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5), $continue];
+    return [$content, $continue];
 }
 
 /**
